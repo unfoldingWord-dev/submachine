@@ -1,0 +1,2 @@
+Code is taken from [Digital Ocean](https://www.digitalocean.com/community/tutorials/how-to-generate-and-add-subtitles-to-videos-using-python-openai-whisper-and-ffmpeg)
+and molded into something more useful than just a tutorial.
