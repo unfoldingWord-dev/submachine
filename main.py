@@ -1,22 +1,22 @@
-import time
+# import time
 import math
 import ffmpeg
 import os
 from dotenv import load_dotenv
-from groq import Groq
-import deepl
 from faster_whisper import WhisperModel
+import argostranslate.package
+import argostranslate.translate
+
+load_dotenv()
 
 
 class SubMachine:
     def __init__(self, input_video):
-        load_dotenv()
 
         self.__input_video = input_video
         self.__input_video_name = input_video.replace(".mp4", "")
 
         self.__output_dir = os.getenv('OUTPUT_DIR')
-        self.__groq_api_key = os.getenv('GROQ_API_KEY')
 
     def __extract_audio(self, input_video):
 
@@ -40,46 +40,37 @@ class SubMachine:
                   (segment.start, segment.end, segment.text))
         return language, segments
 
-    def __translate_groq(self, segments, language_to):
-        client = Groq(api_key=self.__groq_api_key)
-        model = os.getenv('GROQ_MODEL')
+    def __translate_argos(self, segments, from_lc, to_lc):
 
-        sequence = self.__parse_segments_to_srt(segments)
-
-        instruction_message = (
-            "You are a translator. You are analyzing a text and providing answers that exactly match that text. \
-            You should not provide any introductions, explanations and interpretation unless you are specifically asked to do so."
-        )
-
-        prompt = f"Please translate the following subtitle file from English to {language_to}\n\n{sequence}. "
-
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": instruction_message
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-                model=model,
+        # Download and install Argos Translate package
+        argostranslate.package.update_package_index()
+        available_packages = argostranslate.package.get_available_packages()
+        package_to_install = next(
+            filter(
+                lambda x: x.from_code == from_lc and x.to_code == to_lc, available_packages
             )
-            return chat_completion.choices[0].message.content.strip()
-        except Exception as e:
-            print(f"Request failed: {e}")
-            return None
+        )
+        argostranslate.package.install_from_path(package_to_install.download())
 
-    def __translate(self, segments, language):
-        auth_key = os.getenv('DEEPL_API_KEY')
-        translator = deepl.Translator(auth_key)
+        # We keep timestamps out of the translation, as they are being localized as well,
+        # which would make the resulting .srt file 'corrupt'.
+        text = self.__create_translatable_text(segments)
 
-        sequence = self.__parse_segments_to_srt(segments)
+        # print(text)
 
-        result = translator.translate_text(sequence, target_lang=language)
-        return result.text
+        translated_text = argostranslate.translate.translate(text, from_lc, to_lc)
+
+        # print(translated_text)
+
+        for index, segment in enumerate(segments):
+            segment_start = self.__format_time(segment.start)
+            segment_end = self.__format_time(segment.end)
+
+            translated_text = translated_text.replace(f'[{str(index + 1)}]', f"{segment_start} --> {segment_end} ")
+
+        # print(translated_text)
+
+        return translated_text
 
     def __format_time(self, seconds):
         hours = math.floor(seconds / 3600)
@@ -91,6 +82,19 @@ class SubMachine:
         formatted_time = f"{hours:02d}:{minutes:02d}:{seconds:01d},{milliseconds:03d}"
 
         return formatted_time
+
+    def __create_translatable_text(self, segments):
+        text = ""
+
+        for index, segment in enumerate(segments):
+            # segment_start = self.__format_time(segment.start)
+            # segment_end = self.__format_time(segment.end)
+            text += f"{str(index + 1)} \n"
+            text += f"[{str(index + 1)}] \n"
+            text += f"{segment.text} \n"
+            text += "\n"
+
+        return text
 
     def __parse_segments_to_srt(self, segments):
         text = ""
@@ -105,11 +109,8 @@ class SubMachine:
 
         return text
 
-    def __generate_subtitle_file(self, language, segments):
+    def __generate_subtitle_file(self, language, text):
         subtitle_file = f"{self.__output_dir}/{self.__input_video_name}.{language}-sub.srt"
-        text = ""
-
-        text = self.__parse_segments_to_srt(segments)
 
         f = open(subtitle_file, "w")
         f.write(text)
@@ -121,7 +122,7 @@ class SubMachine:
 
         video_input_stream = ffmpeg.input(self.__input_video)
         subtitle_input_stream = ffmpeg.input(subtitle_file)
-        output_video = f"{self.__output_dir}/{self.__input_video_name}-output.mp4"
+        output_video = f"{self.__output_dir}/{self.__input_video_name}-output-{subtitle_language}.mp4"
         subtitle_track_title = subtitle_file.replace(".srt", "")
 
         if soft_subtitle:
@@ -132,7 +133,16 @@ class SubMachine:
             )
             ffmpeg.run(stream, overwrite_output=True)
 
-    def run(self, translate=False):
+        else:
+            # Subtitles burned in
+            (
+                ffmpeg
+                .input(self.__input_video)
+                .output(output_video, vf=f'subtitles={subtitle_file}')
+                .run(overwrite_output=True)
+            )
+
+    def run(self, sub=None):
 
         # Rip out audio
         audio = self.__extract_audio(self.__input_video)
@@ -141,23 +151,28 @@ class SubMachine:
         language, segments = self.__transcribe(audio)
 
         # Translate transcription
-        if translate is True:
+        if sub:
+            target_lang = sub
+            # First translate subtitles
+            subtitles = self.__translate_argos(segments, from_lc=language, to_lc=target_lang)
 
-            # Translate using deepl
-            translated_subs = self.__translate(segments, 'NL')
-            print(translated_subs)
-            exit()
+        else:
+            target_lang = language
+            # Just generate subtitle file from transcription
+            subtitles = self.__parse_segments_to_srt(segments)
 
-        # Generate subtitle file from transcription
-        subtitle_file = self.__generate_subtitle_file(language, segments)
+        # Create the subtitle file
+        subtitle_file = self.__generate_subtitle_file(target_lang, subtitles)
 
         # Glue transcription and video together
+        soft_subtitle = True if os.getenv('BURNIN') == 'False' else False
+
         self.__add_subtitle_to_video(
-            soft_subtitle=True,
+            soft_subtitle=soft_subtitle,
             subtitle_file=subtitle_file,
-            subtitle_language=language
+            subtitle_language=target_lang
         )
 
 
-obj_submachine = SubMachine(input_video='input.mp4')
-obj_submachine.run(translate=True)
+obj_submachine = SubMachine(input_video=os.getenv('INPUT_VIDEO'))
+obj_submachine.run(sub=os.getenv('SUB_LANGUAGE'))
