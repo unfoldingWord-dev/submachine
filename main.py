@@ -14,7 +14,7 @@ class SubMachine:
     def __init__(self, input_video):
 
         self.__input_video = input_video
-        self.__input_video_name = input_video.replace(".mp4", "")
+        self.__input_video_name = os.path.basename(input_video).replace(".mp4", "")
 
         self.__output_dir = os.getenv('OUTPUT_DIR')
 
@@ -56,8 +56,8 @@ class SubMachine:
         except StopIteration:
             # Can't find direct translation route. Will try to use multiple packages
             # Warning: this only works because I assume that you somehow already installed the intermediate packages
-            print(f'No direct translation from \'{from_lc}\' to \'{to_lc}\' available. Will try to use intermediate'
-                  f'translation (en). This will result in a slightly degraded translation.')
+            print(f'No direct translation from \'{from_lc}\' to \'{to_lc}\' available. Will try to use '
+                  f'intermediate translation (en). This will result in a slightly degraded translation.')
 
             intermediate_lc = 'en'
 

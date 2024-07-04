@@ -47,7 +47,7 @@ For every language that you want a subtitle for, an additional package will be d
 
 The following language packs (and thus direct translations) are currently available:
 
-- Albanian -> English
+- Albanian -> English (no great results yet)
 - Arabic -> English
 - Azerbaijani -> English
 - Bengali -> English
