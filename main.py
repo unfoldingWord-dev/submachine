@@ -29,15 +29,24 @@ class SubMachine:
     def __transcribe(self, audio):
         whisper_model = os.getenv('WHISPER_MODEL')
 
-        model = WhisperModel(whisper_model)
+        # Compute type
+        if os.getenv('WHISPER_COMPUTE_TYPE'):
+            compute_type = os.getenv('WHISPER_COMPUTE_TYPE')
+        else:
+            compute_type = 'float16'
+
+        model = WhisperModel(whisper_model, compute_type=compute_type)
         segments, info = model.transcribe(audio)
+
         language = info[0]
-        print("Transcription language:", info[0])
+        print("Transcription language:", language)
+        # segments is a generator, transcription only starts when you iterate over it.
+        # Therefore, the following list() statement makes the transcription actually take place.
         segments = list(segments)
-        for segment in segments:
-            # print(segment)
-            print("[%.2fs -> %.2fs] %s" %
-                  (segment.start, segment.end, segment.text))
+        # for segment in segments:
+        #     # print(segment)
+        #     print("[%.2fs -> %.2fs] %s" %
+        #           (segment.start, segment.end, segment.text))
         return language, segments
 
     def __install_translation_packages(self, from_lc, to_lc):
@@ -186,14 +195,17 @@ class SubMachine:
 
         # Rip out audio
         audio = self.__extract_audio(self.__input_video)
+        print('Extracted audio...')
 
         # Transcribe audio
         language, segments = self.__transcribe(audio)
+        print(f'Transcribed audio... ({len(segments)} subs)')
 
         # Always create subtitle with original language
         subtitles = self.__parse_segments_to_srt(segments)
         sub_lc = language
         subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+        print(f'Subtitle created for \'{sub_lc}\'')
 
         # If sub has a language code, translate the subs to that lc
         if sub:
@@ -202,6 +214,7 @@ class SubMachine:
                 subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
                 if subtitles:
                     subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+                    print(f'Subtitle created for \'{sub_lc}\'')
                 else:
                     print(f'Could not translate subtitles. Using original language ({language})')
 
@@ -213,6 +226,7 @@ class SubMachine:
             subtitle_file=subtitle_file,
             subtitle_language=sub_lc
         )
+        print(f'Video subtitled in \'{sub_lc}\'')
 
 
 obj_submachine = SubMachine(input_video=os.getenv('INPUT_VIDEO'))
