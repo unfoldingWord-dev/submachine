@@ -34,7 +34,33 @@ python3 main.py
 ```
 For every language that you want a subtitle for, an additional package will be downloaded during runtime. This can take some time.
 
-## On language packs
+## On languages detected by Whisper
+The following languages can be detected by Whisper 
+(_as deducted from Whisper output_):
+
+Afrikaans (af), Albanian (sq), Amharic (am), Arabic (ar), Armenian (hy), 
+Assamese (as), Azerbaijani (az), Bashkir (ba), Basque (eu), 
+Belarusian (be), Bengali (bn), Bosnian (bs), Breton (br), Bulgarian (bg), 
+Burmese (my), Catalan (ca), Chinese (zh), Croatian (hr), Czech (cs), 
+Danish (da), Dutch (nl), English (en), Estonian (et), Faroese (fo), 
+Filipino (tl), Finnish (fi), French (fr), Galician (gl), Georgian (ka), 
+German (de), Greek (el), Gujarati (gu), Haitian Creole (ht), Hausa (ha), 
+Hawaiian (haw), Hebrew (he), Hindi (hi), Hungarian (hu), Icelandic (is), 
+Indonesian (id), Italian (it), Japanese (ja), Javanese (jw), Kannada (kn), 
+Kazakh (kk), Khmer (km), Korean (ko), Lao (lo), Latin (la), Latvian (lv), 
+Lingala (ln), Lithuanian (lt), Luxembourgish (lb), Macedonian (mk), 
+Malagasy (mg), Malayalam (ml), Malay (ms), Maltese (mt), Maori (mi), 
+Marathi (mr), Mongolian (mn), Nepali (ne), Norwegian (no), 
+Norwegian Nynorsk (nn), Occitan (oc), Pashto (ps), Persian (fa), 
+Polish (pl), Portuguese (pt), Punjabi (pa), Romanian (ro), Russian (ru), 
+Sanskrit (sa), Serbian (sr), Shona (sn), Sindhi (sd), Sinhala (si), 
+Slovak (sk), Slovenian (sl), Somali (so), Spanish (es), Sundanese (su), 
+Swahili (sw), Swedish (sv), Tajik (tg), Tamil (ta), Tatar (tt), 
+Telugu (te), Thai (th), Tibetan (bo), Turkish (tr), Turkmen (tk), 
+Ukrainian (uk), Urdu (ur), Uzbek (uz), Vietnamese (vi), Welsh (cy), 
+Yiddish (yi), Yoruba (yo)
+
+## On language packs in Argos
 > Argos Translate [...] manages automatically pivoting through 
 > intermediate languages to translate between languages that don't have 
 > a direct translation between them installed. For example, if you have 
@@ -47,7 +73,7 @@ For every language that you want a subtitle for, an additional package will be d
 
 The following language packs (and thus direct translations) are currently available:
 
-- Albanian -> English (no great results yet)
+- Albanian -> English
 - Arabic -> English
 - Azerbaijani -> English
 - Bengali -> English
