@@ -179,6 +179,9 @@ class SubMachine:
         lname = lang.name
 
         if soft_subtitle:
+            # Currently, this adds the subtitle to the first title stream. This overwrites the title of any other subtitle
+            # TODO: Need to figure out if there are other subtitles, so I can title the correct stream
+            # (metadata:s:s:1 or up)
             stream = ffmpeg.output(
                 video_input_stream, subtitle_input_stream, output_video, **{"c": "copy", "c:s": "mov_text"},
                 **{"metadata:s:s:0": f"language={subtitle_language}",
