@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 import argostranslate.package
 import argostranslate.translate
+from iso639 import Lang
 
 load_dotenv()
 
@@ -172,13 +173,16 @@ class SubMachine:
         video_input_stream = ffmpeg.input(self.__input_video)
         subtitle_input_stream = ffmpeg.input(subtitle_file)
         output_video = f"{self.__output_dir}/{self.__input_video_name}-with-subs-{subtitle_language}.mp4"
-        subtitle_track_title = subtitle_file.replace(".srt", "")
+
+        # Get language name
+        lang = Lang(subtitle_language)
+        lname = lang.name
 
         if soft_subtitle:
             stream = ffmpeg.output(
                 video_input_stream, subtitle_input_stream, output_video, **{"c": "copy", "c:s": "mov_text"},
                 **{"metadata:s:s:0": f"language={subtitle_language}",
-                   "metadata:s:s:0": f"title={subtitle_track_title}"}
+                   "metadata:s:s:0": f"title={lname}"}
             )
             ffmpeg.run(stream, overwrite_output=True)
 
