@@ -7,6 +7,8 @@ from faster_whisper import WhisperModel
 import argostranslate.package
 import argostranslate.translate
 from iso639 import Lang
+import subprocess
+import pprint
 
 load_dotenv()
 
@@ -168,6 +170,23 @@ class SubMachine:
 
         return subtitle_file
 
+    def __ffprobe(self, file_path):
+        command_array = ["ffprobe",
+                         "-v", "quiet",
+                         "-print_format", "json",
+                         "-show_format",
+                         "-show_streams",
+                         file_path]
+        result = subprocess.run(command_array, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        return {
+            'return_code': result.returncode,
+            'json': result.stdout,
+            'error': result.stderr
+        }
+
+    def __count_subtitles(self):
+        pass
+
     def __add_subtitle_to_video(self, soft_subtitle, subtitle_file, subtitle_language):
 
         video_input_stream = ffmpeg.input(self.__input_video)
@@ -177,17 +196,32 @@ class SubMachine:
         # Get language name
         lang = Lang(subtitle_language)
         lname = lang.name
+        lcode = lang.pt3
 
         if soft_subtitle:
             # Currently, this adds the subtitle to the first title stream. This overwrites the title of any other subtitle
             # TODO: Need to figure out if there are other subtitles, so I can title the correct stream
             # (metadata:s:s:1 or up)
-            stream = ffmpeg.output(
-                video_input_stream, subtitle_input_stream, output_video, **{"c": "copy", "c:s": "mov_text"},
-                **{"metadata:s:s:0": f"language={subtitle_language}",
-                   "metadata:s:s:0": f"title={lname}"}
-            )
-            ffmpeg.run(stream, overwrite_output=True)
+            # print(lcode)
+            # print(lname)
+
+            lst_commands = [
+                'ffmpeg',
+                '-y',
+                '-i', self.__input_video,
+                '-i', subtitle_file,
+                '-c', 'copy',
+                '-c:s', 'mov_text',
+                '-metadata:s:s:0', f"language={lcode}",
+                '-metadata:s:s:0', f"title={lname}",
+                '-metadata:s:s:0', f"handler_name={lname}",
+                '-disposition:s:0', "default",
+                output_video
+            ]
+            result = subprocess.run(lst_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+            if result.returncode > 0:
+                print(result.stderr)
 
         else:
             # Subtitles burned in
@@ -200,30 +234,33 @@ class SubMachine:
 
     def run(self, sub=None):
 
-        # Rip out audio
-        audio = self.__extract_audio(self.__input_video)
-        print('Extracted audio...')
+        # # Rip out audio
+        # audio = self.__extract_audio(self.__input_video)
+        # print('Extracted audio...')
+        #
+        # # Transcribe audio
+        # language, segments = self.__transcribe(audio)
+        # print(f'Transcribed audio... ({len(segments)} subs)')
+        #
+        # # Always create subtitle with original language
+        # subtitles = self.__parse_segments_to_srt(segments)
+        # sub_lc = language
+        # subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+        # print(f'Subtitle created for \'{sub_lc}\'')
+        #
+        # # If sub has a language code, translate the subs to that lc
+        # if sub:
+        #     if sub != language:
+        #         sub_lc = sub
+        #         subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
+        #         if subtitles:
+        #             subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+        #             print(f'Subtitle created for \'{sub_lc}\'')
+        #         else:
+        #             print(f'Could not translate subtitles. Using original language ({language})')
 
-        # Transcribe audio
-        language, segments = self.__transcribe(audio)
-        print(f'Transcribed audio... ({len(segments)} subs)')
-
-        # Always create subtitle with original language
-        subtitles = self.__parse_segments_to_srt(segments)
-        sub_lc = language
-        subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-        print(f'Subtitle created for \'{sub_lc}\'')
-
-        # If sub has a language code, translate the subs to that lc
-        if sub:
-            if sub != language:
-                sub_lc = sub
-                subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
-                if subtitles:
-                    subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-                    print(f'Subtitle created for \'{sub_lc}\'')
-                else:
-                    print(f'Could not translate subtitles. Using original language ({language})')
+        sub_lc = 'en'
+        subtitle_file = '/home/jaap-jan/Downloads/submachine/output/beginspanish.en-sub.srt'
 
         # Glue transcription and video together
         soft_subtitle = True if os.getenv('BURNIN') == 'False' else False
