@@ -12,21 +12,21 @@ I have only tested this with mp4 videos, so YYMV. Here are the steps.
 
 1) Clone this repo
 ```bash
-git pull https://github.com/unfoldingWord-dev/submachine.git
+git clone https://github.com/unfoldingWord-dev/submachine.git
 cd submachine
 ```
 2) Create a `.env` file based on `example.env`
 3) Create an output directory as defined in .env
 4) Setup a virtual environment (or make a mess of your local Python setup)
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 ```
 5) Install all the requirements
 ```bash
-pip install -r requirements
+pip install -r requirements.txt
 ```
-This will take a while, as the Whisper model is quite big.   
+This will take a while, as the Whisper model is quite big.
 
 6) Run the code 
 ```bash
