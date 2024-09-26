@@ -34,6 +34,10 @@ python3 main.py
 ```
 For every language that you want a subtitle for, an additional package will be downloaded during runtime. This can take some time.
 
+## Known issues
+You might encounter an error like `Could not load library libcudnn_ops_infer.so.8`. In that case, you need to install the CUDNN library. On Ubuntu, you need to run `sudo apt install libcudnn8` or `sudo apt install nvidia-cudnn`. (I have no idea about any other platform).
+*(Time to start wrapping the whole thing in a Docker container)*
+
 ## On languages detected by Whisper
 The following languages can be detected by Whisper 
 (_as deducted from Whisper output_):
