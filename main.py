@@ -17,7 +17,14 @@ class SubMachine:
     def __init__(self, input_video):
 
         self.__input_video = input_video
-        self.__input_video_name = os.path.basename(input_video).replace(".mp4", "")
+
+        # Remove file extension
+        lst_exts = ['mp4', 'mov', 'avi']
+        for ext in lst_exts:
+            if ext not in os.path.basename(input_video):
+                continue
+
+            self.__input_video_name = os.path.basename(input_video).replace(f".{ext}", "")
 
         self.__output_dir = os.getenv('OUTPUT_DIR')
 
@@ -234,33 +241,33 @@ class SubMachine:
 
     def run(self, sub=None):
 
-        # # Rip out audio
-        # audio = self.__extract_audio(self.__input_video)
-        # print('Extracted audio...')
-        #
-        # # Transcribe audio
-        # language, segments = self.__transcribe(audio)
-        # print(f'Transcribed audio... ({len(segments)} subs)')
-        #
-        # # Always create subtitle with original language
-        # subtitles = self.__parse_segments_to_srt(segments)
-        # sub_lc = language
-        # subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-        # print(f'Subtitle created for \'{sub_lc}\'')
-        #
-        # # If sub has a language code, translate the subs to that lc
-        # if sub:
-        #     if sub != language:
-        #         sub_lc = sub
-        #         subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
-        #         if subtitles:
-        #             subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-        #             print(f'Subtitle created for \'{sub_lc}\'')
-        #         else:
-        #             print(f'Could not translate subtitles. Using original language ({language})')
+        # Rip out audio
+        audio = self.__extract_audio(self.__input_video)
+        print('Extracted audio...')
 
-        sub_lc = 'en'
-        subtitle_file = '/home/jaap-jan/Downloads/submachine/output/beginspanish.en-sub.srt'
+        # Transcribe audio
+        language, segments = self.__transcribe(audio)
+        print(f'Transcribed audio... ({len(segments)} subs)')
+
+        # Always create subtitle with original language
+        subtitles = self.__parse_segments_to_srt(segments)
+        sub_lc = language
+        subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+        print(f'Subtitle created for \'{sub_lc}\'')
+
+        # If sub has a language code, translate the subs to that lc
+        if sub:
+            if sub != language:
+                sub_lc = sub
+                subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
+                if subtitles:
+                    subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
+                    print(f'Subtitle created for \'{sub_lc}\'')
+                else:
+                    print(f'Could not translate subtitles. Using original language ({language})')
+
+        # sub_lc = 'en'
+        # subtitle_file = '/home/jaap-jan/Downloads/submachine/output/beginspanish.en-sub.srt'
 
         # Glue transcription and video together
         soft_subtitle = True if os.getenv('BURNIN') == 'False' else False
