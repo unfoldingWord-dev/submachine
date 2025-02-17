@@ -117,16 +117,16 @@ class SubMachine:
 
         if self.__install_translation_packages(from_lc, to_lc):
 
-            # First, remove timestamps from the text to be translated.
-            # They would be localized/translated as well, resulting
-            # in a corrupt .srt file.
+            # 1) __create_translatable_text removes all .srt markers from the file
+            # They would be localized/translated as well, resulting in a corrupt .srt file.
             text = self.__create_translatable_text(arr_subs)
 
+            # 2) Then translate
             translated_text = argostranslate.translate.translate(text, from_lc, to_lc)
 
-            arr_subs_translated = translated_text.split('\n\n')
+            # 3) Now, put everything back together
+            arr_subs_translated = translated_text.split('\n\n')  # split on empty lines
 
-            # Put all the markers and timestamps back in. Eew...
             sub_count = 0
             lst_translated_text = list()
             for sub in arr_subs:
@@ -164,8 +164,6 @@ class SubMachine:
         for sub in arr_subs:
             sub_count += 1
 
-            #text += f"{str(sub_count)} \n"
-            #text += f"[{str(sub_count)}] \n"
             text += f"{sub.text} \n"
             text += "\n"
 
@@ -244,6 +242,7 @@ class SubMachine:
                                     universal_newlines=True)
             if result.returncode > 0:
                 print(result.stderr)
+                return False
 
         else:
             # Subtitles burned in
@@ -311,7 +310,7 @@ class SubMachine:
         else:
             print(f'No target language defined. Using original language ({source_language})')
 
-        # Which language are we using for subtitling
+        # Which language are we using for subtitling?
         if sub_translated is True:
             sub_file = file_subtitle_target
             sub_language = target_language
