@@ -9,6 +9,7 @@ import argostranslate.translate
 from iso639 import Lang
 import subprocess
 import pprint
+import pysrt
 
 load_dotenv()
 
@@ -29,14 +30,20 @@ class SubMachine:
         self.__output_dir = os.getenv('OUTPUT_DIR')
 
     def __extract_audio(self, input_video):
-
         extracted_audio = f"{self.__output_dir}/{self.__input_video_name}-audio.wav"
-        stream = ffmpeg.input(input_video)
-        stream = ffmpeg.output(stream, extracted_audio)
-        ffmpeg.run(stream, overwrite_output=True)
+
+        if os.path.exists(extracted_audio):
+            print(f"File {extracted_audio} already exists. Skipping extraction...")
+        else:
+            stream = ffmpeg.input(input_video)
+            stream = ffmpeg.output(stream, extracted_audio)
+            ffmpeg.run(stream, overwrite_output=True)
+
+            print(f'Extracted audio to {extracted_audio}')
+
         return extracted_audio
 
-    def __transcribe(self, audio):
+    def __transcribe_audio(self, audio):
         whisper_model = os.getenv('WHISPER_MODEL')
 
         # Compute type
@@ -48,8 +55,8 @@ class SubMachine:
         model = WhisperModel(whisper_model, compute_type=compute_type)
         segments, info = model.transcribe(audio)
 
-        language = info[0]
-        print("Transcription language:", language)
+        lc_code = info[0]
+        print("Language detected in audio: ", lc_code)
         # segments is a generator, transcription only starts when you iterate over it.
         # Therefore, the following list() statement makes the transcription actually take place.
         segments = list(segments)
@@ -57,7 +64,7 @@ class SubMachine:
         #     # print(segment)
         #     print("[%.2fs -> %.2fs] %s" %
         #           (segment.start, segment.end, segment.text))
-        return language, segments
+        return lc_code, segments
 
     def __install_translation_packages(self, from_lc, to_lc):
         # Download and install Argos Translate package
@@ -106,28 +113,34 @@ class SubMachine:
         # or we were able to install intermediate packages
         return True
 
-    def __translate_argos(self, segments, from_lc, to_lc):
+    def __translate(self, arr_subs, from_lc, to_lc):
 
         if self.__install_translation_packages(from_lc, to_lc):
 
-            # We keep timestamps out of the translation, as they are being localized as well,
-            # which would make the resulting .srt file 'corrupt'.
-            text = self.__create_translatable_text(segments)
-
-            # print(text)
+            # First, remove timestamps from the text to be translated.
+            # They would be localized/translated as well, resulting
+            # in a corrupt .srt file.
+            text = self.__create_translatable_text(arr_subs)
 
             translated_text = argostranslate.translate.translate(text, from_lc, to_lc)
 
-            # print(translated_text)
+            arr_subs_translated = translated_text.split('\n\n')
 
-            for index, segment in enumerate(segments):
-                segment_start = self.__format_time(segment.start)
-                segment_end = self.__format_time(segment.end)
+            # Put all the markers and timestamps back in. Eew...
+            sub_count = 0
+            lst_translated_text = list()
+            for sub in arr_subs:
 
-                translated_text = translated_text.replace(f'[{str(index + 1)}]', f"{segment_start} --> {segment_end} ")
+                lst_translated_text.append(str(sub_count + 1))  # An .srt file starts counting from 1
+                lst_translated_text.append(f"{sub.start} --> {sub.end}")
+                lst_translated_text.append(arr_subs_translated[sub_count])
+                lst_translated_text.append('')
 
-            # print(translated_text)
+                sub_count += 1
 
+            translated_text = '\n'.join(lst_translated_text)
+
+            # Return the translated text
             return translated_text
 
         else:
@@ -144,13 +157,16 @@ class SubMachine:
 
         return formatted_time
 
-    def __create_translatable_text(self, segments):
+    def __create_translatable_text(self, arr_subs):
         text = ""
 
-        for index, segment in enumerate(segments):
-            text += f"{str(index + 1)} \n"
-            text += f"[{str(index + 1)}] \n"
-            text += f"{segment.text} \n"
+        sub_count = 0
+        for sub in arr_subs:
+            sub_count += 1
+
+            #text += f"{str(sub_count)} \n"
+            #text += f"[{str(sub_count)}] \n"
+            text += f"{sub.text} \n"
             text += "\n"
 
         return text
@@ -163,19 +179,17 @@ class SubMachine:
             segment_end = self.__format_time(segment.end)
             text += f"{str(index + 1)} \n"
             text += f"{segment_start} --> {segment_end} \n"
-            text += f"{segment.text} \n"
+            text += f"{segment.text.strip()} \n"
             text += "\n"
 
         return text
 
-    def __generate_subtitle_file(self, language, text):
-        subtitle_file = f"{self.__output_dir}/{self.__input_video_name}.{language}-sub.srt"
+    def __generate_subtitle_file(self, text, subtitle_file):
 
-        f = open(subtitle_file, "w")
-        f.write(text)
-        f.close()
+        with open(subtitle_file, "w") as f:
+            f.write(text)
 
-        return subtitle_file
+        return True
 
     def __ffprobe(self, file_path):
         command_array = ["ffprobe",
@@ -191,14 +205,15 @@ class SubMachine:
             'error': result.stderr
         }
 
-    def __count_subtitles(self):
-        pass
-
     def __add_subtitle_to_video(self, soft_subtitle, subtitle_file, subtitle_language):
 
-        video_input_stream = ffmpeg.input(self.__input_video)
-        subtitle_input_stream = ffmpeg.input(subtitle_file)
+        # video_input_stream = ffmpeg.input(self.__input_video)
+        # subtitle_input_stream = ffmpeg.input(subtitle_file)
         output_video = f"{self.__output_dir}/{self.__input_video_name}-with-subs-{subtitle_language}.mp4"
+
+        if os.path.exists(output_video):
+            print(f"File {output_video} already exists. Skipping merging...")
+            return False
 
         # Get language name
         lang = Lang(subtitle_language)
@@ -239,46 +254,83 @@ class SubMachine:
                 .run(overwrite_output=True)
             )
 
-    def run(self, sub=None):
+        return True
+
+    def run(self, target_language=None):
 
         # Rip out audio
         audio = self.__extract_audio(self.__input_video)
-        print('Extracted audio...')
 
-        # Transcribe audio
-        language, segments = self.__transcribe(audio)
-        print(f'Transcribed audio... ({len(segments)} subs)')
+        # If there is already a subtitle file available in the source language,
+        # don't transcribe nor create
+        source_language = os.getenv('LANGUAGE_FROM')
+        file_subtitle_source = f"{self.__input_video}.{source_language}-sub.srt"
 
-        # Always create subtitle with original language
-        subtitles = self.__parse_segments_to_srt(segments)
-        sub_lc = language
-        subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-        print(f'Subtitle created for \'{sub_lc}\'')
+        if source_language is not None and os.path.exists(file_subtitle_source):
+            print(f"File {file_subtitle_source} already exists. Skipping transcription...")
 
-        # If sub has a language code, translate the subs to that lc
-        if sub:
-            if sub != language:
-                sub_lc = sub
-                subtitles = self.__translate_argos(segments, from_lc=language, to_lc=sub_lc)
-                if subtitles:
-                    subtitle_file = self.__generate_subtitle_file(sub_lc, subtitles)
-                    print(f'Subtitle created for \'{sub_lc}\'')
+        else:
+
+            # Transcribe audio
+            language, segments = self.__transcribe_audio(audio)
+            print(f'Transcribed audio... ({len(segments)} subs)')
+
+            # Always create subtitle with original language
+            subtitles = self.__parse_segments_to_srt(segments)
+            source_language = language
+
+            self.__generate_subtitle_file(subtitles, file_subtitle_source)
+            print(f'Subtitle created for \'{source_language}\'')
+
+        # We now surely have a subtitle file in the original language
+        # Let's make it parseable
+        arr_subs = pysrt.open(file_subtitle_source)
+
+        # Translate the subs to another language if needed
+        file_subtitle_target = ''
+        sub_translated = False
+        if target_language:
+            if target_language != source_language:
+
+                file_subtitle_target = f"{self.__input_video}.{target_language}-sub.srt"
+
+                if os.path.exists(file_subtitle_target):
+                    print(f'File {file_subtitle_target} already exists. Skipping translation...')
+                    sub_translated = True
+
                 else:
-                    print(f'Could not translate subtitles. Using original language ({language})')
+                    subtitles = self.__translate(arr_subs, from_lc=source_language, to_lc=target_language)
+                    if subtitles:
 
-        # sub_lc = 'en'
-        # subtitle_file = '/home/jaap-jan/Downloads/submachine/output/beginspanish.en-sub.srt'
+                        sub_translated = True
+
+                        self.__generate_subtitle_file(subtitles, file_subtitle_target)
+                        print(f'File {file_subtitle_target} created.')
+                    else:
+                        print(f'Could not translate subtitles. Using original language ({source_language})')
+        else:
+            print(f'No target language defined. Using original language ({source_language})')
+
+        # Which language are we using for subtitling
+        if sub_translated is True:
+            sub_file = file_subtitle_target
+            sub_language = target_language
+        else:
+            sub_file = file_subtitle_source
+            sub_language = source_language
 
         # Glue transcription and video together
         soft_subtitle = True if os.getenv('BURNIN') == 'False' else False
 
-        self.__add_subtitle_to_video(
+        subs_merged = self.__add_subtitle_to_video(
             soft_subtitle=soft_subtitle,
-            subtitle_file=subtitle_file,
-            subtitle_language=sub_lc
+            subtitle_file=sub_file,
+            subtitle_language=sub_language
         )
-        print(f'Video subtitled in \'{sub_lc}\'')
+
+        if subs_merged is True:
+            print(f'Video subtitled in \'{target_language}\'')
 
 
 obj_submachine = SubMachine(input_video=os.getenv('INPUT_VIDEO'))
-obj_submachine.run(sub=os.getenv('SUB_LANGUAGE'))
+obj_submachine.run(target_language=os.getenv('LANGUAGE_TO'))
